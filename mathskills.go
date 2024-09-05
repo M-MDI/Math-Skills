@@ -1,85 +1,98 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 )
 
-func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: go run program.go <filename>")
-		return
-	}
-
-	filename := os.Args[1]
-
-	data, err := readData(filename)
-	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
-		return
-	}
-
-	avg := calculateAverage(data)
-	median := calculateMedian(data)
-	variance := calculateVariance(data)
-	stdDev := calculateStandardDeviation(variance, len(data))
-
-	fmt.Printf("Average: %.2f\n", avg)
-	fmt.Printf("Median: %.2f\n", median)
-	fmt.Printf("Variance: %.2f\n", variance)
-	fmt.Printf("Standard Deviation: %.2f\n", stdDev)
-}
-
-func readData(filename string) ([]float64, error) {
-	data, err := ioutil.ReadFile(filename)
+func readNumbersFromFile(filePath string) ([]int, error) {
+	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 
-	var numbers []float64
-	for _, line := range strings.Split(string(data), "\n") {
-		num, err := strconv.ParseFloat(strings.TrimSpace(line), 64)
+	var numbers []int
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		num, err := strconv.Atoi(scanner.Text())
 		if err != nil {
-			return nil, fmt.Errorf("invalid number in file: %w", err)
+			return nil, err
 		}
 		numbers = append(numbers, num)
 	}
-
-	return numbers, nil
+	return numbers, scanner.Err()
 }
 
-func calculateAverage(data []float64) float64 {
-	sum := 0.0
-	for _, v := range data {
-		sum += v
+func calculateAverage(numbers []int) float64 {
+	sum := 0
+	for _, num := range numbers {
+		sum += num
 	}
-	return sum / float64(len(data))
+	return float64(sum) / float64(len(numbers))
 }
 
-func calculateMedian(data []float64) float64 {
-	sort.Float64s(data)
-	n := len(data)
-	if n%2 == 1 {
-		return data[n/2]
-	} else {
-		return (data[n/2-1] + data[n/2]) / 2
+func calculateVariance(numbers []int, mean float64) float64 {
+	var sumSquares float64
+	for _, num := range numbers {
+		diff := float64(num) - mean
+		sumSquares += diff * diff
 	}
+	return sumSquares / float64(len(numbers))
 }
 
-func calculateVariance(data []float64) float64 {
-	mean := calculateAverage(data)
-	variance := 0.0
-	for _, v := range data {
-		variance += math.Pow(v-mean, 2)
-	}
-	return variance / float64(len(data)-1)
-}
-
-func calculateStandardDeviation(variance float64, n int) float64 {
+func calculateStdDev(variance float64) float64 {
 	return math.Sqrt(variance)
+}
+
+func writeResultsToFile(filePath string, avg, median, variance, stdDev float64) error {
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = fmt.Fprintf(file, "Average: %.2f\nMedian: %.2f\nVariance: %.2f\nStandard Deviation: %.2f\n", avg, median, variance, stdDev)
+	return err
+}
+
+func calculateMedian(numbers []int) float64 {
+	n := len(numbers)
+	mid := n / 2
+	if n%2 == 0 {
+		return float64(numbers[mid-1]+numbers[mid]) / 2
+	}
+	return float64(numbers[mid])
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		log.Fatal("Please provide the file path as an argument")
+	}
+	filePath := os.Args[1]
+
+	numbers, err := readNumbersFromFile(filePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Sort numbers to calculate the median
+	sort.Ints(numbers)
+
+	average := calculateAverage(numbers)
+	median := calculateMedian(numbers)
+	variance := calculateVariance(numbers, average)
+	stdDev := calculateStdDev(variance)
+
+	err = writeResultsToFile("statistics.txt", average, median, variance, stdDev)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Statistics written to statistics.txt")
 }
